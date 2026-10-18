@@ -31,9 +31,39 @@ export default function PosKasirPage() {
   const [selectedService, setSelectedService] = useState<any>(null);
   const [lastPrintedTrx, setLastPrintedTrx] = useState<any>(null);
 
+  const handleReadScale = async () => {
+    try {
+      const res = await akasiaApi.readScale();
+      if (res.success && res.weightKg) {
+        setActualWeight(res.weightKg);
+      }
+    } catch (err) {
+      console.error('Gagal baca scale COM3:', err);
+    }
+  };
+
   useEffect(() => {
     fetchRates();
   }, [actualWeight, lengthCm, widthCm, heightCm]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'F8') {
+        e.preventDefault();
+        handleReadScale();
+      } else if (e.key === 'F12') {
+        e.preventDefault();
+        handleBookingSubmit();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        setRecipientName('');
+        setRecipientPhone('');
+        setRecipientAddress('');
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [actualWeight, lengthCm, widthCm, heightCm, selectedService, senderName, senderPhone, senderAddress, recipientName, recipientPhone, recipientAddress, destinationHub, stagingBin, paymentMethod]);
 
   const fetchRates = async () => {
     try {
@@ -266,9 +296,15 @@ export default function PosKasirPage() {
                   <span className="material-symbols-outlined text-[18px]">scale</span>
                   3. Pengukuran Bobot &amp; Audit Volumetrik
                 </span>
-                <span className="text-[10px] font-tabular bg-[#0b2614] text-[#a5f87a] font-bold px-2 py-0.5 rounded">
-                  Sensor COM3 Terkunci
-                </span>
+                <button
+                  type="button"
+                  onClick={handleReadScale}
+                  className="text-[10px] font-tabular bg-[#0b2614] hover:bg-[#114b27] text-[#a5f87a] font-bold px-2.5 py-1 rounded flex items-center gap-1 cursor-pointer transition-all shadow-xs active:scale-95"
+                  title="Klik atau tekan F8 untuk membaca sensor timbangan fisik COM3"
+                >
+                  <span className="material-symbols-outlined text-[13px]">sync</span>
+                  <span>[F8] Sensor COM3 Terkunci</span>
+                </button>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">

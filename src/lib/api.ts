@@ -19,6 +19,8 @@ export async function fetchApi(endpoint: string, options: RequestInit = {}) {
 
 export const akasiaApi = {
   // POS & Counter
+  readScale: () => fetchApi('/pos/scale/read'),
+
   calculateRate: (data: {
     actualWeightKg: number;
     lengthCm: number;
