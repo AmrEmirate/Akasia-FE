@@ -39,7 +39,20 @@ export const akasiaApi = {
       body: JSON.stringify(bookingData),
     }),
 
-  getActiveSession: () => fetchApi('/pos/active-session'),
+  getActiveSession: (agentId?: string) =>
+    fetchApi(`/pos/active-session${agentId ? `?agentId=${agentId}` : ''}`),
+
+  openShift: (data: { agentId?: string; cashierName: string; shiftType?: string; startingCash?: number }) =>
+    fetchApi('/pos/shift/open', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  closeShift: (data: { shiftId?: string; actualCashCount?: number; notes?: string }) =>
+    fetchApi('/pos/shift/close', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
 
   // Manifest Batch
   getCurrentManifest: () => fetchApi('/manifest/current'),

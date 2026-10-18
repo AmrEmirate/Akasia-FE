@@ -5,21 +5,17 @@ import HeaderAndSidebar from '@/components/HeaderAndSidebar';
 import { akasiaApi } from '@/lib/api';
 
 export default function MultiSearchCsPage() {
-  const [searchQuery, setSearchQuery] = useState('0812-8877-3321');
+  const [searchQuery, setSearchQuery] = useState('');
   const [results, setResults] = useState<any>(null);
   const [loading, setLoading] = useState(false);
 
   // Complaint Form Modal
   const [complaintModal, setComplaintModal] = useState(false);
-  const [reporterName, setReporterName] = useState('Hendra');
-  const [customerPhone, setCustomerPhone] = useState('0812-8877-3321');
+  const [reporterName, setReporterName] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
   const [issueCategory, setIssueCategory] = useState('GENERAL_INQUIRY');
   const [notes, setNotes] = useState('');
   const [complaintSaved, setComplaintSaved] = useState(false);
-
-  useEffect(() => {
-    handleSearch(searchQuery);
-  }, []);
 
   const handleSearch = async (q: string) => {
     if (!q.trim()) return;
@@ -120,7 +116,19 @@ export default function MultiSearchCsPage() {
           ))}
         </div>
 
-        {loading ? (
+        {!results && !loading ? (
+          <div className="bg-white rounded-xl border border-[#d0d9d1] p-10 text-center space-y-3 shadow-xs">
+            <div className="w-12 h-12 rounded-full bg-[#e9efe9] text-[#003316] flex items-center justify-center mx-auto">
+              <span className="material-symbols-outlined text-[28px]">manage_search</span>
+            </div>
+            <h4 className="font-headline font-bold text-sm text-[#003316]">
+              Pencarian Terpadu Operasional Gerai
+            </h4>
+            <p className="text-xs text-[#414941] max-w-md mx-auto">
+              Ketik nomor AWB ID Express, nomor handphone pengirim/penerima, nama pelanggan, atau nomor batch manifest pada kolom di atas untuk memeriksa status paket secara instan.
+            </p>
+          </div>
+        ) : loading ? (
           <div className="py-16 text-center text-xs text-[#414941]">
             <span className="material-symbols-outlined text-[32px] animate-spin text-[#114b27] block mb-2">
               progress_activity

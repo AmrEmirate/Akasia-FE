@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import './globals.css';
 
+import Providers from '@/components/Providers';
+
 export const metadata: Metadata = {
   title: 'Akasia Logistik - Sub-Agent Counter POS & ID Express Operations',
   description:
@@ -27,7 +29,7 @@ export default function RootLayout({
         />
       </head>
       <body className="antialiased min-h-screen bg-[#f4f6f4] text-[#131e17]">
-        {children}
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

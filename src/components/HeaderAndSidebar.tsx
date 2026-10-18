@@ -2,22 +2,13 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useState, useEffect } from 'react';
-import { akasiaApi } from '@/lib/api';
+import { useState } from 'react';
+import { useKasirAuth } from '@/context/KasirAuthContext';
 
 export default function HeaderAndSidebar({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const [session, setSession] = useState<any>(null);
+  const { agent, activeShift, openShiftModal } = useKasirAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
-  useEffect(() => {
-    akasiaApi
-      .getActiveSession()
-      .then((res) => {
-        if (res.session) setSession(res.session);
-      })
-      .catch((err) => console.error(err));
-  }, []);
 
   const navItems = [
     { label: '1. POS Kasir & Cetak Thermal', path: '/', icon: 'receipt_long' },
@@ -70,16 +61,16 @@ export default function HeaderAndSidebar({ children }: { children: React.ReactNo
             <div className="hidden sm:flex flex-col">
               <div className="flex items-center gap-1.5">
                 <span className="font-headline text-xs font-bold text-[#003316] uppercase">
-                  {session?.agent?.branchName || 'Gerai Kuningan Tower 2'}
+                  {agent?.branchName || 'Gerai POS Akasia'}
                 </span>
                 <span className="font-tabular text-[10px] px-1.5 py-0.2 rounded bg-[#e9efe9] text-[#131e17] font-semibold">
-                  {session?.agent?.agentId || 'AG-0418'}
+                  {agent?.agentId || 'AG-0418'}
                 </span>
               </div>
               <div className="flex items-center gap-1">
                 <span className="h-1.5 w-1.5 rounded-full bg-[#286c00] animate-pulse"></span>
                 <span className="text-[9px] font-bold text-[#286c00] tracking-tight uppercase">
-                  LIVE CONNECTED: ID EXPRESS DIRECT API
+                  ONLINE: TERMINAL KASIR AKTIF
                 </span>
               </div>
             </div>
@@ -91,10 +82,10 @@ export default function HeaderAndSidebar({ children }: { children: React.ReactNo
               <span className="material-symbols-outlined text-[#003316] text-[18px]">badge</span>
               <div className="flex flex-col">
                 <span className="text-[9px] text-[#414941] uppercase font-bold leading-none">
-                  Kasir Aktif
+                  Kasir Bertugas
                 </span>
                 <span className="text-xs font-bold text-[#131e17]">
-                  {session?.activeShift?.cashierName || 'Budi S. (Shift Pagi)'}
+                  {activeShift ? `${activeShift.cashierName} (${activeShift.shiftCode})` : 'Belum Ada Shift'}
                 </span>
               </div>
             </div>
@@ -110,17 +101,39 @@ export default function HeaderAndSidebar({ children }: { children: React.ReactNo
                   Laci Kas Shift
                 </span>
                 <span className="font-tabular text-xs font-bold text-[#0b381b]">
-                  Rp {session?.activeShift?.currentCash ? session.activeShift.currentCash.toLocaleString('id-ID') : '1.450.000'}
+                  Rp {activeShift ? activeShift.currentCash.toLocaleString('id-ID') : '0'}
                 </span>
               </div>
             </div>
           </div>
 
-          {/* Right Action Switchers */}
+          {/* Right Action Switchers: Shift Button & Proship Link */}
           <div className="flex items-center gap-2 shrink-0">
+            {activeShift ? (
+              <button
+                type="button"
+                onClick={openShiftModal}
+                className="flex items-center gap-1.5 bg-[#e9efe9] hover:bg-red-50 text-[#131e17] hover:text-[#e01a22] border border-[#d0d9d1] hover:border-red-200 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors"
+                title="Tutup Shift & Rekonsiliasi Kas Laci"
+              >
+                <span className="material-symbols-outlined text-[16px]">lock_clock</span>
+                <span>Tutup Shift [{activeShift.shiftCode}]</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={openShiftModal}
+                className="flex items-center gap-1.5 bg-[#114b27] hover:bg-[#003316] text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow-xs transition-colors animate-pulse"
+                title="Buka Shift Kasir Baru"
+              >
+                <span className="material-symbols-outlined text-[16px]">key</span>
+                <span>Buka Shift Kasir</span>
+              </button>
+            )}
+
             <Link
               href="/"
-              className="flex items-center gap-1.5 bg-[#114b27] hover:bg-[#0b381b] text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow-xs transition-colors"
+              className="hidden sm:flex items-center gap-1.5 bg-[#003316] hover:bg-[#114b27] text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow-xs transition-colors"
             >
               <span className="material-symbols-outlined text-[16px]">add_box</span>
               <span>[F2] Transaksi Baru</span>

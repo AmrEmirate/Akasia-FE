@@ -3,26 +3,28 @@
 import { useState, useEffect } from 'react';
 import HeaderAndSidebar from '@/components/HeaderAndSidebar';
 import { akasiaApi } from '@/lib/api';
+import { useKasirAuth } from '@/context/KasirAuthContext';
 
 export default function PosKasirPage() {
+  const { activeShift, openShiftModal, refreshSession, agent } = useKasirAuth();
   const [loading, setLoading] = useState(false);
   const [bookingSuccess, setBookingSuccess] = useState(false);
 
-  // Form State
-  const [senderPhone, setSenderPhone] = useState('0812-8877-3321');
-  const [senderName, setSenderName] = useState('Hendra (PT Mega Pratama)');
-  const [senderAddress, setSenderAddress] = useState('Kuningan Tower 2 Lt. 14, Unit 1402, Jaksel');
+  // Form State (Clean production inputs)
+  const [senderPhone, setSenderPhone] = useState('');
+  const [senderName, setSenderName] = useState('');
+  const [senderAddress, setSenderAddress] = useState('');
 
-  const [recipientName, setRecipientName] = useState('Kresna Logistik Office');
-  const [recipientPhone, setRecipientPhone] = useState('0817-2233-8899');
-  const [recipientAddress, setRecipientAddress] = useState('Jl. Pemuda No. 102, Rawamangun, Jaktim');
-  const [destinationHub, setDestinationHub] = useState('HUB JKT-TIMUR');
+  const [recipientName, setRecipientName] = useState('');
+  const [recipientPhone, setRecipientPhone] = useState('');
+  const [recipientAddress, setRecipientAddress] = useState('');
+  const [destinationHub, setDestinationHub] = useState('HUB JKT-SELATAN');
 
   // Scale & Dimensions
-  const [actualWeight, setActualWeight] = useState<number>(2.45);
-  const [lengthCm, setLengthCm] = useState<number>(30);
-  const [widthCm, setWidthCm] = useState<number>(20);
-  const [heightCm, setHeightCm] = useState<number>(15);
+  const [actualWeight, setActualWeight] = useState<number>(1.0);
+  const [lengthCm, setLengthCm] = useState<number>(20);
+  const [widthCm, setWidthCm] = useState<number>(15);
+  const [heightCm, setHeightCm] = useState<number>(10);
   const [stagingBin, setStagingBin] = useState('BIN-A1');
   const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'QRIS'>('CASH');
 
@@ -31,7 +33,30 @@ export default function PosKasirPage() {
   const [selectedService, setSelectedService] = useState<any>(null);
   const [lastPrintedTrx, setLastPrintedTrx] = useState<any>(null);
 
+  // Live Physical Scale COM3 reader with Web Serial API and API fallback
   const handleReadScale = async () => {
+    // 1. Try Web Serial API (Direct RS232 COM port in Chrome/Edge)
+    if (typeof window !== 'undefined' && 'serial' in navigator) {
+      try {
+        const port = await (navigator as any).serial.requestPort();
+        await port.open({ baudRate: 9600 });
+        const reader = port.readable.getReader();
+        const { value } = await reader.read();
+        const text = new TextDecoder().decode(value);
+        const weightMatch = text.match(/(\d+\.?\d*)/);
+        if (weightMatch) {
+          const parsed = parseFloat(weightMatch[1]);
+          if (parsed > 0) setActualWeight(parsed);
+        }
+        reader.releaseLock();
+        await port.close();
+        return;
+      } catch (e) {
+        console.log('Web Serial direct port skipped/cancelled, fallback to bridge:', e);
+      }
+    }
+
+    // 2. Fallback to backend serial bridge API
     try {
       const res = await akasiaApi.readScale();
       if (res.success && res.weightKg) {
@@ -63,7 +88,7 @@ export default function PosKasirPage() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [actualWeight, lengthCm, widthCm, heightCm, selectedService, senderName, senderPhone, senderAddress, recipientName, recipientPhone, recipientAddress, destinationHub, stagingBin, paymentMethod]);
+  }, [actualWeight, lengthCm, widthCm, heightCm, selectedService, senderName, senderPhone, senderAddress, recipientName, recipientPhone, recipientAddress, destinationHub, stagingBin, paymentMethod, activeShift]);
 
   const fetchRates = async () => {
     try {
@@ -83,23 +108,39 @@ export default function PosKasirPage() {
   };
 
   const handleBookingSubmit = async () => {
+    if (!activeShift) {
+      alert('Shift kasir belum dibuka! Silakan klik "Buka Shift Kasir" di bagian atas sebelum memproses transaksi.');
+      openShiftModal();
+      return;
+    }
+
+    if (!senderPhone.trim() || !senderName.trim() || !senderAddress.trim()) {
+      alert('Mohon lengkapi data pengirim (Nama, No. Telepon, dan Alamat)');
+      return;
+    }
+
+    if (!recipientPhone.trim() || !recipientName.trim() || !recipientAddress.trim()) {
+      alert('Mohon lengkapi data penerima (Nama, No. Telepon, dan Alamat Tujuan)');
+      return;
+    }
+
     setLoading(true);
     try {
       const bookingPayload = {
-        agentId: 'AG-0418',
-        senderName,
-        senderPhone,
-        senderAddress,
-        recipientName,
-        recipientPhone,
-        recipientAddress,
+        agentId: agent?.agentId || 'AG-0418',
+        senderName: senderName.trim(),
+        senderPhone: senderPhone.trim(),
+        senderAddress: senderAddress.trim(),
+        recipientName: recipientName.trim(),
+        recipientPhone: recipientPhone.trim(),
+        recipientAddress: recipientAddress.trim(),
         destinationHub,
         serviceLevel: selectedService?.name || 'ID Express Standard (REG)',
         actualWeightKg: actualWeight,
         lengthCm,
         widthCm,
         heightCm,
-        shippingFee: selectedService?.shippingFee || 24000,
+        shippingFee: selectedService?.shippingFee || 18000,
         insuranceFee: selectedService?.insuranceFee || 1500,
         paymentMethod,
         stagingBin,
@@ -109,7 +150,12 @@ export default function PosKasirPage() {
       if (res.success) {
         setLastPrintedTrx(res.transaction);
         setBookingSuccess(true);
-        setTimeout(() => setBookingSuccess(false), 4000);
+        refreshSession();
+        // Clear recipient inputs for next customer in line
+        setRecipientName('');
+        setRecipientPhone('');
+        setRecipientAddress('');
+        setTimeout(() => setBookingSuccess(false), 5000);
       }
     } catch (err: any) {
       alert(err.message || 'Gagal memproses transaksi kasir');

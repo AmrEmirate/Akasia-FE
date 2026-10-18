@@ -5,6 +5,9 @@ import HeaderAndSidebar from '@/components/HeaderAndSidebar';
 import { akasiaApi } from '@/lib/api';
 
 export default function RekonsiliasiKomisiPage() {
+  const currentPeriod = new Date().toISOString().slice(0, 7);
+  const currentPeriodLabel = new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+
   const [settlementData, setSettlementData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [payoutMsg, setPayoutMsg] = useState<string | null>(null);
@@ -15,7 +18,7 @@ export default function RekonsiliasiKomisiPage() {
 
   const fetchSettlement = async () => {
     try {
-      const res = await akasiaApi.getSettlementSummary('2024-10');
+      const res = await akasiaApi.getSettlementSummary(currentPeriod);
       if (res.success) setSettlementData(res);
     } catch (err) {
       console.error(err);
@@ -53,7 +56,7 @@ export default function RekonsiliasiKomisiPage() {
                 Rekonsiliasi Komisi Kontrak Volume &amp; Revenue Sharing
               </span>
               <span className="text-xs text-[#414941]">
-                Perjanjian Kerjasama Eksklusif: Akasia Logistik × ID Express (Periode: Oktober 2024)
+                Perjanjian Kerjasama Eksklusif: Akasia Logistik × ID Express (Periode: {currentPeriodLabel})
               </span>
             </div>
           </div>

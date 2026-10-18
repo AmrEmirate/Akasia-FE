@@ -11,10 +11,10 @@ export default function ManifestBatchPage() {
   const [scanInput, setScanInput] = useState('');
   const [scannedFeedback, setScannedFeedback] = useState<string | null>(null);
 
-  // Handover state
-  const [driverName, setDriverName] = useState('Slamet Widodo (ID Express Fleet 04)');
-  const [driverPhone, setDriverPhone] = useState('0812-9182-4411');
-  const [vehiclePlate, setVehiclePlate] = useState('B 9182 KCG (Blindvan)');
+  // Handover state (Clean inputs for actual fleet driver)
+  const [driverName, setDriverName] = useState('');
+  const [driverPhone, setDriverPhone] = useState('');
+  const [vehiclePlate, setVehiclePlate] = useState('');
   const [sealedSuccess, setSealedSuccess] = useState<any>(null);
   const [handoverLoading, setHandoverLoading] = useState(false);
 
@@ -43,14 +43,18 @@ export default function ManifestBatchPage() {
   };
 
   const handleSealAndPrintBast = async () => {
+    if (!driverName.trim() || !driverPhone.trim() || !vehiclePlate.trim()) {
+      alert('Mohon lengkapi identitas kurir penjemput ID Express (Nama Driver, No. Handphone, dan No. Polisi Armada)');
+      return;
+    }
     setHandoverLoading(true);
     try {
       const res = await akasiaApi.executeHandover({
         manifestBatchId: batchData?.manifestBatchId,
-        fleetDriverName: driverName,
-        driverPhone,
-        vehiclePlate,
-        signatureData: 'SIG_DRIVER_SLAMET_VERIFIED',
+        fleetDriverName: driverName.trim(),
+        driverPhone: driverPhone.trim(),
+        vehiclePlate: vehiclePlate.trim(),
+        signatureData: `SIG_${driverName.trim().toUpperCase().replace(/\s+/g, '_')}_VERIFIED`,
       });
       if (res.success) {
         setSealedSuccess(res.handoverReport);
@@ -421,9 +425,10 @@ export default function ManifestBatchPage() {
               {/* Driver & Armada Form */}
               <div className="pt-2 border-t border-[#d0d9d1] space-y-2 text-xs">
                 <div>
-                  <label className="text-[10px] font-bold text-[#414941] uppercase">Driver Penjemput</label>
+                  <label className="text-[10px] font-bold text-[#414941] uppercase">Driver Penjemput ID Express *</label>
                   <input
                     type="text"
+                    placeholder="Contoh: Rahmat Hidayat (Fleet 04)"
                     className="w-full mt-0.5 border border-[#d0d9d1] rounded px-2.5 py-1.5 text-xs font-bold text-[#131e17] outline-none"
                     value={driverName}
                     onChange={(e) => setDriverName(e.target.value)}
@@ -431,19 +436,21 @@ export default function ManifestBatchPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="text-[10px] font-bold text-[#414941] uppercase">No. Handphone</label>
+                    <label className="text-[10px] font-bold text-[#414941] uppercase">No. Handphone *</label>
                     <input
                       type="text"
+                      placeholder="0812-xxxx-xxxx"
                       className="w-full mt-0.5 border border-[#d0d9d1] rounded px-2 py-1.5 text-xs font-tabular text-[#131e17] outline-none"
                       value={driverPhone}
                       onChange={(e) => setDriverPhone(e.target.value)}
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] font-bold text-[#414941] uppercase">Plat Armada</label>
+                    <label className="text-[10px] font-bold text-[#414941] uppercase">Plat Armada *</label>
                     <input
                       type="text"
-                      className="w-full mt-0.5 border border-[#d0d9d1] rounded px-2 py-1.5 text-xs font-tabular font-bold text-[#131e17] outline-none"
+                      placeholder="B 1234 XYZ"
+                      className="w-full mt-0.5 border border-[#d0d9d1] rounded px-2 py-1.5 text-xs font-tabular font-bold text-[#131e17] outline-none uppercase"
                       value={vehiclePlate}
                       onChange={(e) => setVehiclePlate(e.target.value)}
                     />
@@ -454,11 +461,11 @@ export default function ManifestBatchPage() {
               {/* Digital Signature Simulation Box */}
               <div>
                 <label className="text-[10px] font-bold text-[#414941] uppercase block mb-1">
-                  Tanda Tangan Digital Driver (Handover Pad)
+                  Verifikasi Serah Terima Fisik
                 </label>
-                <div className="h-20 bg-[#f4f6f4] border border-dashed border-[#8eaa93] rounded-lg flex items-center justify-center">
-                  <span className="font-headline font-bold text-sm text-[#003316] select-none italic">
-                    ✍ Slamet Widodo (Driver Verified)
+                <div className="h-16 bg-[#f4f6f4] border border-dashed border-[#8eaa93] rounded-lg flex items-center justify-center">
+                  <span className="font-headline font-bold text-xs text-[#003316] select-none italic">
+                    {driverName ? `✍ ${driverName} (Armada Terverifikasi)` : 'Menunggu kedatangan & identitas driver armada'}
                   </span>
                 </div>
               </div>
