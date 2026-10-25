@@ -6,7 +6,7 @@ import { akasiaApi } from '@/lib/api';
 import { useKasirAuth } from '@/context/KasirAuthContext';
 
 export default function PosKasirPage() {
-  const { activeShift, openShiftModal, refreshSession, agent } = useKasirAuth();
+  const { activeShift, openShiftModal, refreshSession, agent, user } = useKasirAuth();
   const [loading, setLoading] = useState(false);
   const [bookingSuccess, setBookingSuccess] = useState(false);
 
@@ -166,7 +166,7 @@ export default function PosKasirPage() {
     setLoading(true);
     try {
       const bookingPayload = {
-        agentId: agent?.agentId || 'AG-0418',
+        agentId: user?.agentId || agent?.agentId || 'AG-0418',
         senderName: senderName.trim(),
         senderPhone: senderPhone.trim(),
         senderAddress: senderAddress.trim(),

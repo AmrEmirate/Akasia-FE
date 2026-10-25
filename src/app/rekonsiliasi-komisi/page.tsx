@@ -3,23 +3,43 @@
 import { useState, useEffect } from 'react';
 import HeaderAndSidebar from '@/components/HeaderAndSidebar';
 import { akasiaApi } from '@/lib/api';
+import { useKasirAuth } from '@/context/KasirAuthContext';
 
 export default function RekonsiliasiKomisiPage() {
   const currentPeriod = new Date().toISOString().slice(0, 7);
   const currentPeriodLabel = new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
 
+  const { user, isPusat } = useKasirAuth();
+
   // Role Switcher: 'sub_agent' vs 'akasia_pusat'
+  // If user is sub-agent, force 'sub_agent' role.
   const [activeRole, setActiveRole] = useState<'sub_agent' | 'akasia_pusat'>('sub_agent');
-  const [selectedAgentId, setSelectedAgentId] = useState('AG-0418');
+  const [selectedAgentId, setSelectedAgentId] = useState(user?.agentId || 'AG-0418');
   const [agentsList, setAgentsList] = useState<any[]>([]);
 
   const [settlementData, setSettlementData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [payoutMsg, setPayoutMsg] = useState<string | null>(null);
 
+  // Sync role and agent ID on user load
   useEffect(() => {
-    fetchAgents();
-  }, []);
+    if (user) {
+      if (user.role === 'AKASIA_PUSAT') {
+        setActiveRole('akasia_pusat');
+      } else {
+        setActiveRole('sub_agent');
+        if (user.agentId) {
+          setSelectedAgentId(user.agentId);
+        }
+      }
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (isPusat) {
+      fetchAgents();
+    }
+  }, [isPusat]);
 
   useEffect(() => {
     fetchSettlement();
@@ -113,21 +133,31 @@ export default function RekonsiliasiKomisiPage() {
               }`}
             >
               <span className="material-symbols-outlined text-[16px]">storefront</span>
-              <span>Menu Sub-Agent (Gerai)</span>
+              <span>Menu Sub-Agent (20%)</span>
             </button>
 
-            <button
-              type="button"
-              onClick={() => setActiveRole('akasia_pusat')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-                activeRole === 'akasia_pusat'
-                  ? 'bg-[#114b27] text-white shadow-xs'
-                  : 'text-[#414941] hover:text-[#131e17]'
-              }`}
-            >
-              <span className="material-symbols-outlined text-[16px]">admin_panel_settings</span>
-              <span>Menu Akasia Pusat</span>
-            </button>
+            {isPusat ? (
+              <button
+                type="button"
+                onClick={() => setActiveRole('akasia_pusat')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                  activeRole === 'akasia_pusat'
+                    ? 'bg-[#114b27] text-white shadow-xs'
+                    : 'text-[#414941] hover:text-[#131e17]'
+                }`}
+              >
+                <span className="material-symbols-outlined text-[16px]">admin_panel_settings</span>
+                <span>Menu Akasia Pusat (25%)</span>
+              </button>
+            ) : (
+              <div
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold text-[#8a948c] flex items-center gap-1.5 cursor-not-allowed opacity-60"
+                title="Akses Terkunci: Hanya dapat diakses oleh Akasia Pusat"
+              >
+                <span className="material-symbols-outlined text-[16px]">lock</span>
+                <span>Menu Akasia Pusat</span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -148,13 +178,16 @@ export default function RekonsiliasiKomisiPage() {
               <div className="flex items-center gap-2">
                 <span className="material-symbols-outlined text-[#003316] text-[20px]">badge</span>
                 <span className="text-xs font-bold text-[#003316]">
-                  Gerai Aktif: {settlementData?.agent?.branchName || 'Gerai Kuningan Tower 2'} ({settlementData?.agent?.agentId || selectedAgentId})
+                  Gerai Aktif: {settlementData?.agent?.branchName || user?.branchName || 'Gerai Kuningan Tower 2'} ({settlementData?.agent?.agentId || selectedAgentId})
+                </span>
+                <span className="text-[10px] bg-[#dcf5ce] text-[#0b381b] font-bold px-2 py-0.5 rounded-full uppercase">
+                  Hak Bagi Hasil 20%
                 </span>
               </div>
 
-              {agentsList.length > 1 && (
+              {isPusat && agentsList.length > 1 && (
                 <div className="flex items-center gap-2">
-                  <label className="text-[10px] font-bold text-[#414941] uppercase">Pilih Gerai:</label>
+                  <label className="text-[10px] font-bold text-[#414941] uppercase">Audit Gerai:</label>
                   <select
                     value={selectedAgentId}
                     onChange={(e) => setSelectedAgentId(e.target.value)}

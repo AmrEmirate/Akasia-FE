@@ -1,13 +1,38 @@
 const API_BASE_URL = process.env.NEXT_PUBLIC_AKASIA_API_URL || 'http://localhost:5002/api';
 
+export function getAuthToken(): string | null {
+  if (typeof window !== 'undefined') {
+    return localStorage.getItem('akasia_token');
+  }
+  return null;
+}
+
+export function setAuthToken(token: string | null) {
+  if (typeof window !== 'undefined') {
+    if (token) {
+      localStorage.setItem('akasia_token', token);
+    } else {
+      localStorage.removeItem('akasia_token');
+    }
+  }
+}
+
 export async function fetchApi(endpoint: string, options: RequestInit = {}) {
   const url = `${API_BASE_URL}${endpoint}`;
+  const token = getAuthToken();
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options.headers as Record<string, string>),
+  };
+
+  if (token && !headers['Authorization']) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
   const response = await fetch(url, {
     ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
+    headers,
   });
 
   const data = await response.json();
@@ -18,6 +43,20 @@ export async function fetchApi(endpoint: string, options: RequestInit = {}) {
 }
 
 export const akasiaApi = {
+  // Authentication & RBAC
+  login: (credentials: { username: string; password: string }) =>
+    fetchApi('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify(credentials),
+    }),
+
+  getMe: () => fetchApi('/auth/me'),
+
+  logout: () =>
+    fetchApi('/auth/logout', {
+      method: 'POST',
+    }),
+
   // POS & Counter
   readScale: () => fetchApi('/pos/scale/read'),
 

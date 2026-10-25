@@ -7,13 +7,17 @@ import { useKasirAuth } from '@/context/KasirAuthContext';
 
 export default function HeaderAndSidebar({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { agent, activeShift, openShiftModal } = useKasirAuth();
+  const { user, agent, activeShift, openShiftModal, logout, isPusat } = useKasirAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const navItems = [
     { label: '1. POS Kasir & Cetak Thermal', path: '/', icon: 'receipt_long' },
     { label: '2. Manifest Batch & Pickup', path: '/manifest-batch', icon: 'local_shipping' },
-    { label: '3. Rekonsiliasi Komisi', path: '/rekonsiliasi-komisi', icon: 'payments' },
+    {
+      label: isPusat ? '3. Rekonsiliasi Sentral (25%)' : '3. Komisi Gerai Saya (20%)',
+      path: '/rekonsiliasi-komisi',
+      icon: 'payments',
+    },
     { label: '4. Multi-Search & CS Gerai', path: '/multi-search-cs', icon: 'manage_search' },
   ];
 
@@ -61,16 +65,22 @@ export default function HeaderAndSidebar({ children }: { children: React.ReactNo
             <div className="hidden sm:flex flex-col">
               <div className="flex items-center gap-1.5">
                 <span className="font-headline text-xs font-bold text-[#003316] uppercase">
-                  {agent?.branchName || 'Gerai POS Akasia'}
+                  {user?.role === 'AKASIA_PUSAT' ? 'Kantor Pusat Akasia Logistik' : agent?.branchName || 'Gerai POS Akasia'}
                 </span>
-                <span className="font-tabular text-[10px] px-1.5 py-0.2 rounded bg-[#e9efe9] text-[#131e17] font-semibold">
-                  {agent?.agentId || 'AG-0418'}
-                </span>
+                {user?.role === 'AKASIA_PUSAT' ? (
+                  <span className="font-tabular text-[9px] px-2 py-0.5 rounded-full bg-[#1b2a47] text-[#93c5fd] font-bold tracking-wider uppercase">
+                    SUPERADMIN PUSAT
+                  </span>
+                ) : (
+                  <span className="font-tabular text-[10px] px-1.5 py-0.2 rounded bg-[#e9efe9] text-[#131e17] font-semibold">
+                    {user?.agentId || agent?.agentId || 'AG-0418'}
+                  </span>
+                )}
               </div>
               <div className="flex items-center gap-1">
                 <span className="h-1.5 w-1.5 rounded-full bg-[#286c00] animate-pulse"></span>
                 <span className="text-[9px] font-bold text-[#286c00] tracking-tight uppercase">
-                  ONLINE: TERMINAL KASIR AKTIF
+                  ONLINE: {user ? user.username : 'GUEST'}
                 </span>
               </div>
             </div>
@@ -85,7 +95,7 @@ export default function HeaderAndSidebar({ children }: { children: React.ReactNo
                   Kasir Bertugas
                 </span>
                 <span className="text-xs font-bold text-[#131e17]">
-                  {activeShift ? `${activeShift.cashierName} (${activeShift.shiftCode})` : 'Belum Ada Shift'}
+                  {activeShift ? `${activeShift.cashierName} (${activeShift.shiftCode})` : (user?.fullName || 'Belum Ada Shift')}
                 </span>
               </div>
             </div>
@@ -107,7 +117,7 @@ export default function HeaderAndSidebar({ children }: { children: React.ReactNo
             </div>
           </div>
 
-          {/* Right Action Switchers: Shift Button & Proship Link */}
+          {/* Right Action Switchers: Shift Button, User Profile & Proship Link */}
           <div className="flex items-center gap-2 shrink-0">
             {activeShift ? (
               <button
@@ -127,7 +137,7 @@ export default function HeaderAndSidebar({ children }: { children: React.ReactNo
                 title="Buka Shift Kasir Baru"
               >
                 <span className="material-symbols-outlined text-[16px]">key</span>
-                <span>Buka Shift Kasir</span>
+                <span>Buka Shift</span>
               </button>
             )}
 
@@ -136,8 +146,36 @@ export default function HeaderAndSidebar({ children }: { children: React.ReactNo
               className="hidden sm:flex items-center gap-1.5 bg-[#003316] hover:bg-[#114b27] text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow-xs transition-colors"
             >
               <span className="material-symbols-outlined text-[16px]">add_box</span>
-              <span>[F2] Transaksi Baru</span>
+              <span>[F2] Loket</span>
             </Link>
+
+            {/* User Session & Logout Action */}
+            {user ? (
+              <div className="flex items-center gap-1.5 bg-[#f4f6f4] border border-[#d0d9d1] pl-2.5 pr-1 py-1 rounded-lg">
+                <div className="flex flex-col text-right leading-none">
+                  <span className="text-[11px] font-bold text-[#131e17]">{user.fullName}</span>
+                  <span className="text-[9px] font-semibold text-[#414941]">
+                    {user.role === 'AKASIA_PUSAT' ? 'PUSAT (25%)' : 'GERAI (20%)'}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={logout}
+                  className="p-1 rounded text-[#414941] hover:text-[#e01a22] hover:bg-red-50 transition-colors"
+                  title="Keluar / Ganti Akun"
+                >
+                  <span className="material-symbols-outlined text-[18px]">logout</span>
+                </button>
+              </div>
+            ) : (
+              <Link
+                href="/login"
+                className="flex items-center gap-1 bg-[#114b27] hover:bg-[#003316] text-white px-2.5 py-1.5 rounded-lg text-xs font-bold transition-colors"
+              >
+                <span className="material-symbols-outlined text-[16px]">login</span>
+                <span>Masuk</span>
+              </Link>
+            )}
 
             <a
               href="http://localhost:3000"
@@ -147,7 +185,7 @@ export default function HeaderAndSidebar({ children }: { children: React.ReactNo
               title="Buka Platform Proship Digital Shipping"
             >
               <span className="material-symbols-outlined text-[16px]">open_in_new</span>
-              <span>Buka Proship Web</span>
+              <span>Proship</span>
             </a>
           </div>
         </div>
