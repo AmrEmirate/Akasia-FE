@@ -27,6 +27,7 @@ export const akasiaApi = {
     widthCm: number;
     heightCm: number;
     destinationCity?: string;
+    destinationZone?: string;
   }) =>
     fetchApi('/pos/calculate-rate', {
       method: 'POST',
@@ -71,9 +72,13 @@ export const akasiaApi = {
 
   getManifestHistory: () => fetchApi('/manifest/history'),
 
-  // Commission & Settlement
-  getSettlementSummary: (period?: string) =>
-    fetchApi(`/settlement/summary${period ? `?period=${period}` : ''}`),
+  // Commission & Settlement (Role-Aware: Sub-Agent vs Akasia Pusat)
+  getSettlementSummary: (period?: string, role: 'sub_agent' | 'akasia_pusat' = 'sub_agent', agentId?: string) =>
+    fetchApi(
+      `/settlement/summary?period=${period || ''}&role=${role}${agentId ? `&agentId=${encodeURIComponent(agentId)}` : ''}`
+    ),
+
+  getAgentsList: () => fetchApi('/settlement/agents'),
 
   payoutSettlement: (settlementId: string) =>
     fetchApi('/settlement/payout', {
@@ -81,7 +86,16 @@ export const akasiaApi = {
       body: JSON.stringify({ settlementId }),
     }),
 
-  // Multi-Search & CS
+  payoutSubAgent: (agentId: string) =>
+    fetchApi('/settlement/payout', {
+      method: 'POST',
+      body: JSON.stringify({ agentId }),
+    }),
+
+  // Customer Auto-Lookup & Multi-Search
+  searchCustomers: (query: string) =>
+    fetchApi(`/pos/customers/search?q=${encodeURIComponent(query)}`),
+
   lookupUniversal: (query: string) =>
     fetchApi(`/search/lookup?query=${encodeURIComponent(query)}`),
 

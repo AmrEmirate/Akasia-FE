@@ -15,27 +15,62 @@ export default function PosKasirPage() {
   const [senderName, setSenderName] = useState('');
   const [senderAddress, setSenderAddress] = useState('');
 
+  // Auto-lookup dropdown suggestions
+  const [customerSuggestions, setCustomerSuggestions] = useState<any[]>([]);
+  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+
   const [recipientName, setRecipientName] = useState('');
   const [recipientPhone, setRecipientPhone] = useState('');
   const [recipientAddress, setRecipientAddress] = useState('');
   const [destinationHub, setDestinationHub] = useState('HUB JKT-SELATAN');
+  const [destinationZone, setDestinationZone] = useState<'Jabodetabek' | 'Pulau Jawa' | 'Luar Pulau Jawa' | 'Pedalaman / Remote'>('Jabodetabek');
 
   // Scale & Dimensions
-  const [actualWeight, setActualWeight] = useState<number>(1.0);
+  const [actualWeight, setActualWeight] = useState<number>(0.4);
   const [lengthCm, setLengthCm] = useState<number>(20);
   const [widthCm, setWidthCm] = useState<number>(15);
   const [heightCm, setHeightCm] = useState<number>(10);
   const [stagingBin, setStagingBin] = useState('BIN-A1');
-  const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'QRIS'>('CASH');
+
+  // Operational Settings (Remote Booking & Commission Type & Payment)
+  const [isRemoteBooking, setIsRemoteBooking] = useState(false);
+  const [commissionType, setCommissionType] = useState<'PERCENTAGE' | 'FLAT_AMOUNT'>('PERCENTAGE');
+  const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'QRIS' | 'BANK_TRANSFER'>('CASH');
 
   // Computed & API rate response
   const [rateData, setRateData] = useState<any>(null);
   const [selectedService, setSelectedService] = useState<any>(null);
   const [lastPrintedTrx, setLastPrintedTrx] = useState<any>(null);
 
+  // Customer repeat auto-lookup
+  const handleSenderPhoneChange = async (val: string) => {
+    setSenderPhone(val);
+    if (val.trim().length >= 3) {
+      try {
+        const res = await akasiaApi.searchCustomers(val.trim());
+        if (res.success && res.customers && res.customers.length > 0) {
+          setCustomerSuggestions(res.customers);
+          setShowCustomerDropdown(true);
+        } else {
+          setShowCustomerDropdown(false);
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    } else {
+      setShowCustomerDropdown(false);
+    }
+  };
+
+  const handleSelectCustomer = (cus: any) => {
+    setSenderName(cus.fullName || '');
+    setSenderPhone(cus.phone || '');
+    setSenderAddress(cus.address || '');
+    setShowCustomerDropdown(false);
+  };
+
   // Live Physical Scale COM3 reader with Web Serial API and API fallback
   const handleReadScale = async () => {
-    // 1. Try Web Serial API (Direct RS232 COM port in Chrome/Edge)
     if (typeof window !== 'undefined' && 'serial' in navigator) {
       try {
         const port = await (navigator as any).serial.requestPort();
@@ -56,7 +91,6 @@ export default function PosKasirPage() {
       }
     }
 
-    // 2. Fallback to backend serial bridge API
     try {
       const res = await akasiaApi.readScale();
       if (res.success && res.weightKg) {
@@ -69,7 +103,7 @@ export default function PosKasirPage() {
 
   useEffect(() => {
     fetchRates();
-  }, [actualWeight, lengthCm, widthCm, heightCm]);
+  }, [actualWeight, lengthCm, widthCm, heightCm, destinationZone, destinationHub]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -84,11 +118,12 @@ export default function PosKasirPage() {
         setRecipientName('');
         setRecipientPhone('');
         setRecipientAddress('');
+        setShowCustomerDropdown(false);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [actualWeight, lengthCm, widthCm, heightCm, selectedService, senderName, senderPhone, senderAddress, recipientName, recipientPhone, recipientAddress, destinationHub, stagingBin, paymentMethod, activeShift]);
+  }, [actualWeight, lengthCm, widthCm, heightCm, selectedService, senderName, senderPhone, senderAddress, recipientName, recipientPhone, recipientAddress, destinationHub, destinationZone, stagingBin, paymentMethod, activeShift, isRemoteBooking, commissionType]);
 
   const fetchRates = async () => {
     try {
@@ -97,10 +132,14 @@ export default function PosKasirPage() {
         lengthCm,
         widthCm,
         heightCm,
+        destinationCity: destinationHub,
+        destinationZone,
       });
       if (res.success) {
         setRateData(res);
-        setSelectedService(res.services[0]);
+        // Automatically select the recommended service for the weight category
+        const rec = res.services.find((s: any) => s.isRecommended) || res.services[0];
+        setSelectedService(rec);
       }
     } catch (err) {
       console.error(err);
@@ -135,15 +174,17 @@ export default function PosKasirPage() {
         recipientPhone: recipientPhone.trim(),
         recipientAddress: recipientAddress.trim(),
         destinationHub,
-        serviceLevel: selectedService?.name || 'ID Express Standard (REG)',
+        serviceLevel: selectedService?.name || 'ID Express iD Standard',
         actualWeightKg: actualWeight,
         lengthCm,
         widthCm,
         heightCm,
-        shippingFee: selectedService?.shippingFee || 18000,
-        insuranceFee: selectedService?.insuranceFee || 1500,
+        shippingFee: selectedService?.shippingFee || 9000,
+        insuranceFee: selectedService?.insuranceFee || 1000,
         paymentMethod,
         stagingBin,
+        isRemoteBooking,
+        commissionType,
       };
 
       const res = await akasiaApi.createBooking(bookingPayload);
@@ -155,7 +196,7 @@ export default function PosKasirPage() {
         setRecipientName('');
         setRecipientPhone('');
         setRecipientAddress('');
-        setTimeout(() => setBookingSuccess(false), 5000);
+        setTimeout(() => setBookingSuccess(false), 6000);
       }
     } catch (err: any) {
       alert(err.message || 'Gagal memproses transaksi kasir');
@@ -165,15 +206,21 @@ export default function PosKasirPage() {
   };
 
   const chargeableWeight = rateData?.scaleReadout?.chargeableWeightKg || actualWeight;
+  const hasSideOver40 = rateData?.scaleReadout?.hasSideOver40 || false;
   const isVolumetricHigher = rateData?.scaleReadout?.isVolumetricHigher || false;
-  const volumetricWeight = rateData?.scaleReadout?.volumetricWeightKg || 1.5;
-  const totalAmount = (selectedService?.shippingFee || 24000) + (selectedService?.insuranceFee || 1500);
-  const earnedCommission = Math.round((selectedService?.shippingFee || 24000) * 0.2);
+  const volumetricWeight = rateData?.scaleReadout?.volumetricWeightKg || 0.5;
+  const totalAmount = (selectedService?.shippingFee || 9000) + (selectedService?.insuranceFee || 1000);
+
+  // Komisi Sub Agent dari Akasia Pusat (20% atau flat Rp 1.100)
+  const earnedCommission =
+    commissionType === 'FLAT_AMOUNT'
+      ? 1100
+      : Math.round((selectedService?.shippingFee || 9000) * 0.2);
 
   return (
     <HeaderAndSidebar>
       <div className="p-4 sm:p-6 space-y-4">
-        {/* Top Operational Banner: Live Dispatch & Fast Tally */}
+        {/* Top Operational Banner */}
         <div className="bg-white p-4 rounded-xl border border-[#d0d9d1] shadow-xs flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-[#0b2614] text-[#a5f87a] flex items-center justify-center shrink-0">
@@ -182,10 +229,10 @@ export default function PosKasirPage() {
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-headline font-bold text-xs uppercase text-[#0b381b]">
-                  Loket Drop Point 01
+                  Counter POS Akasia Logistik
                 </span>
                 <span className="bg-[#dcf5ce] text-[#0b381b] text-[9px] font-bold px-1.5 py-0.5 rounded font-tabular uppercase">
-                  ONLINE DIRECT API V3.2
+                  DIRECT API ID EXPRESS
                 </span>
               </div>
               <span className="text-[11px] text-[#414941]">
@@ -206,7 +253,7 @@ export default function PosKasirPage() {
             <div className="h-7 w-px bg-[#d0d9d1]"></div>
             <div className="text-right">
               <span className="text-[10px] text-[#414941] uppercase font-bold block">
-                Pencapaian Komisi
+                Hak Komisi Sub-Agent (20%)
               </span>
               <span className="font-tabular font-bold text-sm text-[#16a34a]">
                 Rp 174.600
@@ -216,10 +263,12 @@ export default function PosKasirPage() {
         </div>
 
         {bookingSuccess && (
-          <div className="p-3 bg-[#dcf5ce] border border-[#286c00] rounded-xl text-xs text-[#0b381b] font-bold flex items-center justify-between animate-bounce">
+          <div className="p-3 bg-[#dcf5ce] border border-[#286c00] rounded-xl text-xs text-[#0b381b] font-bold flex flex-wrap items-center justify-between gap-2 animate-bounce">
             <span className="flex items-center gap-2">
               <span className="material-symbols-outlined text-[20px] text-[#286c00]">print</span>
-              Stiker Thermal ID Express berhasil dicetak! Resi: {lastPrintedTrx?.idExpressAwb}
+              {isRemoteBooking
+                ? `Transaksi Remote Booking Sukses! Resi: ${lastPrintedTrx?.idExpressAwb} (Waybill dicetak di Hub Pusat)`
+                : `Stiker Thermal ID Express berhasil dicetak! Resi: ${lastPrintedTrx?.idExpressAwb}`}
             </span>
             <span className="font-tabular bg-white px-2 py-0.5 rounded text-[10px]">
               Tersimpan di {stagingBin}
@@ -227,36 +276,60 @@ export default function PosKasirPage() {
           </div>
         )}
 
-        {/* MAIN POS SPLIT GRID (7 COLS ORDER ENTRY - 5 COLS THERMAL PREVIEW) */}
+        {/* MAIN POS SPLIT GRID */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
           {/* LEFT COLUMN: 7 Cols Entry Module */}
           <div className="lg:col-span-7 space-y-4">
             {/* 1. Customer Sender Auto-Lookup */}
-            <div className="bg-white rounded-xl border border-[#d0d9d1] p-4 shadow-xs space-y-3">
+            <div className="bg-white rounded-xl border border-[#d0d9d1] p-4 shadow-xs space-y-3 relative">
               <div className="flex items-center justify-between pb-1 border-b border-[#f4f6f4]">
                 <span className="text-xs font-bold text-[#003316] uppercase tracking-wider flex items-center gap-1.5">
                   <span className="material-symbols-outlined text-[18px]">person_search</span>
-                  1. Identitas Pengirim &amp; Langganan (Sender)
+                  1. Identitas Pengirim (Data Pelanggan Tersimpan Otomatis)
                 </span>
                 <span className="text-[10px] bg-[#e9efe9] text-[#003316] font-bold px-2 py-0.5 rounded">
-                  [F1] Auto-Lookup
+                  Repeat Customer Lookup
                 </span>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 relative">
                 <div>
-                  <label className="text-[10px] font-bold text-[#414941] uppercase">No. Telepon / HP</label>
+                  <label className="text-[10px] font-bold text-[#414941] uppercase">
+                    No. Telepon / HP (Ketik untuk Cari Data)
+                  </label>
                   <input
                     type="text"
+                    placeholder="Contoh: 0812-8877-3321"
                     className="w-full mt-1 border border-[#d0d9d1] rounded-lg px-2.5 py-1.5 text-xs font-tabular font-bold text-[#131e17] focus:ring-2 focus:ring-[#114b27] outline-none"
                     value={senderPhone}
-                    onChange={(e) => setSenderPhone(e.target.value)}
+                    onChange={(e) => handleSenderPhoneChange(e.target.value)}
                   />
+
+                  {/* Auto-Lookup Dropdown */}
+                  {showCustomerDropdown && customerSuggestions.length > 0 && (
+                    <div className="absolute left-0 right-0 z-30 mt-1 bg-white border border-[#d0d9d1] rounded-xl shadow-lg max-h-48 overflow-y-auto divide-y divide-[#f4f6f4]">
+                      {customerSuggestions.map((cus) => (
+                        <div
+                          key={cus.id}
+                          onClick={() => handleSelectCustomer(cus)}
+                          className="p-2 hover:bg-[#eaf7ec] cursor-pointer text-xs transition-colors"
+                        >
+                          <div className="font-bold text-[#003316] flex items-center justify-between">
+                            <span>{cus.fullName}</span>
+                            <span className="font-tabular text-[10px] text-[#286c00] font-semibold">{cus.phone}</span>
+                          </div>
+                          <span className="text-[10px] text-[#414941] block truncate">{cus.address}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
+
                 <div>
                   <label className="text-[10px] font-bold text-[#414941] uppercase">Nama Pengirim / PT</label>
                   <input
                     type="text"
+                    placeholder="Contoh: Hendra (PT Mega Pratama)"
                     className="w-full mt-1 border border-[#d0d9d1] rounded-lg px-2.5 py-1.5 text-xs text-[#131e17] focus:ring-2 focus:ring-[#114b27] outline-none"
                     value={senderName}
                     onChange={(e) => setSenderName(e.target.value)}
@@ -265,9 +338,10 @@ export default function PosKasirPage() {
               </div>
 
               <div>
-                <label className="text-[10px] font-bold text-[#414941] uppercase">Alamat Gedung / Kantor Gerai</label>
+                <label className="text-[10px] font-bold text-[#414941] uppercase">Alamat Gedung / Kantor Gerai Pengirim</label>
                 <input
                   type="text"
+                  placeholder="Contoh: Kuningan Tower 2 Lt. 14, Jakarta Selatan"
                   className="w-full mt-1 border border-[#d0d9d1] rounded-lg px-2.5 py-1.5 text-xs text-[#131e17] focus:ring-2 focus:ring-[#114b27] outline-none"
                   value={senderAddress}
                   onChange={(e) => setSenderAddress(e.target.value)}
@@ -287,11 +361,47 @@ export default function PosKasirPage() {
                 </span>
               </div>
 
+              {/* Destination Zone Picker */}
+              <div className="p-2.5 bg-[#f4f6f4] rounded-lg border border-[#d0d9d1]/60">
+                <label className="text-[10px] font-bold text-[#003316] uppercase block mb-1">
+                  Wilayah / Jangkauan Pengiriman:
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-xs">
+                  {[
+                    { id: 'Jabodetabek', label: 'Jabodetabek' },
+                    { id: 'Pulau Jawa', label: 'Pulau Jawa' },
+                    { id: 'Luar Pulau Jawa', label: 'Luar Jawa' },
+                    { id: 'Pedalaman / Remote', label: 'Pedalaman (Khusus)' },
+                  ].map((z) => (
+                    <button
+                      key={z.id}
+                      type="button"
+                      onClick={() => setDestinationZone(z.id as any)}
+                      className={`px-2 py-1.5 rounded-lg font-bold text-[11px] transition-all border ${
+                        destinationZone === z.id
+                          ? 'bg-[#003316] text-[#a5f87a] border-[#003316]'
+                          : 'bg-white text-[#414941] border-[#d0d9d1] hover:bg-[#e9efe9]'
+                      }`}
+                    >
+                      {z.label}
+                    </button>
+                  ))}
+                </div>
+
+                {destinationZone === 'Pedalaman / Remote' && (
+                  <div className="mt-2 p-2 bg-[#fffbeb] border border-[#f59e0b] rounded text-[11px] text-[#92400e] flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-[16px]">warning</span>
+                    <span>Wilayah pedalaman/remote area memerlukan konfirmasi jangkauan ID Express sebelum pengiriman.</span>
+                  </div>
+                )}
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <div>
                   <label className="text-[10px] font-bold text-[#414941] uppercase">Nama Penerima</label>
                   <input
                     type="text"
+                    placeholder="Contoh: Kresna Logistik Office"
                     className="w-full mt-1 border border-[#d0d9d1] rounded-lg px-2.5 py-1.5 text-xs text-[#131e17] focus:ring-2 focus:ring-[#114b27] outline-none"
                     value={recipientName}
                     onChange={(e) => setRecipientName(e.target.value)}
@@ -301,6 +411,7 @@ export default function PosKasirPage() {
                   <label className="text-[10px] font-bold text-[#414941] uppercase">No. Handphone Penerima</label>
                   <input
                     type="text"
+                    placeholder="Contoh: 0817-2233-8899"
                     className="w-full mt-1 border border-[#d0d9d1] rounded-lg px-2.5 py-1.5 text-xs font-tabular text-[#131e17] focus:ring-2 focus:ring-[#114b27] outline-none"
                     value={recipientPhone}
                     onChange={(e) => setRecipientPhone(e.target.value)}
@@ -313,6 +424,7 @@ export default function PosKasirPage() {
                   <label className="text-[10px] font-bold text-[#414941] uppercase">Alamat Lengkap Tujuan</label>
                   <input
                     type="text"
+                    placeholder="Contoh: Jl. Pemuda No. 102, Rawamangun, Jaktim"
                     className="w-full mt-1 border border-[#d0d9d1] rounded-lg px-2.5 py-1.5 text-xs text-[#131e17] focus:ring-2 focus:ring-[#114b27] outline-none"
                     value={recipientAddress}
                     onChange={(e) => setRecipientAddress(e.target.value)}
@@ -335,12 +447,12 @@ export default function PosKasirPage() {
               </div>
             </div>
 
-            {/* 3. Physical Scale & Volumetric Audit */}
+            {/* 3. Physical Scale & Dimensi > 40 cm Audit */}
             <div className="bg-white rounded-xl border border-[#d0d9d1] p-4 shadow-xs space-y-3">
               <div className="flex items-center justify-between pb-1 border-b border-[#f4f6f4]">
                 <span className="text-xs font-bold text-[#003316] uppercase tracking-wider flex items-center gap-1.5">
                   <span className="material-symbols-outlined text-[18px]">scale</span>
-                  3. Pengukuran Bobot &amp; Audit Volumetrik
+                  3. Pengukuran Bobot &amp; Audit Kubikasi (&gt; 40 cm Rule)
                 </span>
                 <button
                   type="button"
@@ -349,7 +461,7 @@ export default function PosKasirPage() {
                   title="Klik atau tekan F8 untuk membaca sensor timbangan fisik COM3"
                 >
                   <span className="material-symbols-outlined text-[13px]">sync</span>
-                  <span>[F8] Sensor COM3 Terkunci</span>
+                  <span>[F8] Baca Scale COM3</span>
                 </button>
               </div>
 
@@ -393,24 +505,30 @@ export default function PosKasirPage() {
                 </div>
               </div>
 
-              {/* Volumetric Audit Bar */}
+              {/* Volumetric Audit Bar (> 40 cm rule) */}
               <div
                 className={`p-3 rounded-lg border flex items-center justify-between text-xs ${
-                  isVolumetricHigher
-                    ? 'bg-[#fef5e7] border-[#e58a13] text-[#c05621]'
-                    : 'bg-[#eaf7ec] border-[#81bb8c] text-[#003316]'
+                  hasSideOver40
+                    ? isVolumetricHigher
+                      ? 'bg-[#fef5e7] border-[#e58a13] text-[#c05621]'
+                      : 'bg-[#eaf7ec] border-[#81bb8c] text-[#003316]'
+                    : 'bg-[#f4f6f4] border-[#d0d9d1] text-[#131e17]'
                 }`}
               >
                 <div className="flex items-center gap-2">
                   <span className="material-symbols-outlined text-[20px]">
-                    {isVolumetricHigher ? 'warning' : 'verified'}
+                    {hasSideOver40 ? (isVolumetricHigher ? 'warning' : 'verified') : 'check_circle'}
                   </span>
                   <div>
                     <span className="font-bold block">
-                      {isVolumetricHigher ? 'Audit Volumetrik Aktif' : 'Bobot Fisik Dominan'}
+                      {!hasSideOver40
+                        ? 'Bebas Penalti Kubikasi (Semua Sisi <= 40 cm)'
+                        : isVolumetricHigher
+                        ? 'Audit Kubikasi Aktif (Sisi > 40 cm & Bobot Dimensi Lebih Besar)'
+                        : 'Audit Dimensi Normal (Fisik Lebih Besar Dari Kubikasi)'}
                     </span>
                     <span className="text-[10px]">
-                      Volumetrik: ({lengthCm}×{widthCm}×{heightCm})/6000 = {volumetricWeight} kg | Fisik: {actualWeight} kg
+                      Dimensi: {lengthCm}×{widthCm}×{heightCm} cm | Kubikasi ({lengthCm}×{widthCm}×{heightCm}/6000) = {volumetricWeight} kg | Fisik: {actualWeight} kg
                     </span>
                   </div>
                 </div>
@@ -421,11 +539,17 @@ export default function PosKasirPage() {
                 </div>
               </div>
 
-              {/* ID Express Service Levels */}
+              {/* ID Express 3 Dedicated Service Levels */}
               <div className="space-y-1.5 pt-1">
-                <label className="text-[10px] font-bold text-[#414941] uppercase">
-                  Pilih Layanan Resmi ID Express
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] font-bold text-[#414941] uppercase">
+                    Pilih Layanan ID Express (Otomatis Dikelompokkan)
+                  </label>
+                  <span className="text-[9px] text-[#286c00] font-bold">
+                    ✓ Terhubung Live Sistem ID Express
+                  </span>
+                </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   {(rateData?.services || []).map((srv: any, idx: number) => {
                     const isSelected = selectedService?.id === srv.id;
@@ -433,27 +557,36 @@ export default function PosKasirPage() {
                       <div
                         key={idx}
                         onClick={() => setSelectedService(srv)}
-                        className={`p-2.5 rounded-lg border cursor-pointer transition-all ${
+                        className={`p-2.5 rounded-lg border cursor-pointer transition-all relative ${
                           isSelected
                             ? 'border-[#003316] bg-[#eaf7ec] ring-2 ring-[#003316]/20'
                             : 'border-[#d0d9d1] bg-white hover:border-[#8eaa93]'
                         }`}
                       >
+                        {srv.isRecommended && (
+                          <span className="absolute -top-2 right-2 bg-[#286c00] text-white text-[8px] font-bold px-1.5 py-0.2 rounded-full uppercase tracking-tighter">
+                            Rekomendasi Berat
+                          </span>
+                        )}
+
                         <div className="flex items-center justify-between">
-                          <span className="text-xs font-bold text-[#131e17]">{srv.name}</span>
+                          <span className="text-xs font-bold text-[#131e17]">{srv.code}</span>
                           {isSelected && (
                             <span className="material-symbols-outlined text-[16px] text-[#286c00]">
                               check_circle
                             </span>
                           )}
                         </div>
+
                         <span className="text-[10px] text-[#414941] block mt-0.5">{srv.estimatedDays}</span>
+                        <span className="text-[9px] text-[#8eaa93] block line-clamp-1 mt-0.5">{srv.applicabilityNote}</span>
+
                         <div className="mt-2 pt-1 border-t border-[#d0d9d1]/50 flex items-baseline justify-between">
                           <span className="font-tabular font-bold text-xs text-[#003316]">
                             Rp {srv.shippingFee.toLocaleString('id-ID')}
                           </span>
                           <span className="text-[9px] font-tabular text-[#286c00] font-semibold">
-                            +{srv.subAgentCommissionPercent}%
+                            +20% Komisi
                           </span>
                         </div>
                       </div>
@@ -462,26 +595,47 @@ export default function PosKasirPage() {
                 </div>
               </div>
 
-              {/* Staging Bin Selection */}
-              <div className="flex items-center gap-2 pt-1">
-                <label className="text-[10px] font-bold text-[#414941] uppercase shrink-0">
-                  Bin Penempatan Staging:
+              {/* Remote Booking & Staging Bin */}
+              <div className="pt-2 border-t border-[#f4f6f4] flex flex-wrap items-center justify-between gap-3">
+                {/* Remote Booking Checkbox */}
+                <label className="flex items-center gap-2 cursor-pointer bg-[#e9efe9] px-3 py-1.5 rounded-lg border border-[#d0d9d1]">
+                  <input
+                    type="checkbox"
+                    checked={isRemoteBooking}
+                    onChange={(e) => setIsRemoteBooking(e.target.checked)}
+                    className="h-4 w-4 text-[#114b27] rounded focus:ring-[#114b27]"
+                  />
+                  <div>
+                    <span className="text-xs font-bold text-[#003316] block leading-none">
+                      Remote Booking (Barang Di Luar Wilayah)
+                    </span>
+                    <span className="text-[9px] text-[#414941]">
+                      Waybill fisik akan dicetak di Hub / Kantor Pusat
+                    </span>
+                  </div>
                 </label>
-                <div className="flex gap-2">
-                  {['BIN-A1', 'BIN-B2', 'BIN-VOLUMETRIC', 'BIN-FRAGILE'].map((b) => (
-                    <button
-                      key={b}
-                      type="button"
-                      onClick={() => setStagingBin(b)}
-                      className={`px-2 py-0.5 rounded text-[10px] font-tabular font-bold border transition-colors ${
-                        stagingBin === b
-                          ? 'bg-[#003316] text-white border-[#003316]'
-                          : 'bg-white text-[#414941] border-[#d0d9d1] hover:bg-[#e9efe9]'
-                      }`}
-                    >
-                      {b}
-                    </button>
-                  ))}
+
+                {/* Staging Bin */}
+                <div className="flex items-center gap-2">
+                  <label className="text-[10px] font-bold text-[#414941] uppercase shrink-0">
+                    Bin Staging:
+                  </label>
+                  <div className="flex gap-1">
+                    {['BIN-A1', 'BIN-B2', 'BIN-VOLUMETRIC', 'BIN-FRAGILE'].map((b) => (
+                      <button
+                        key={b}
+                        type="button"
+                        onClick={() => setStagingBin(b)}
+                        className={`px-2 py-0.5 rounded text-[10px] font-tabular font-bold border transition-colors ${
+                          stagingBin === b
+                            ? 'bg-[#003316] text-white border-[#003316]'
+                            : 'bg-white text-[#414941] border-[#d0d9d1] hover:bg-[#e9efe9]'
+                        }`}
+                      >
+                        {b}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
@@ -496,25 +650,54 @@ export default function PosKasirPage() {
                   Ringkasan Transaksi POS
                 </span>
                 <span className="text-[10px] font-tabular bg-[#dcf5ce] text-[#0b381b] font-bold px-1.5 py-0.5 rounded">
-                  Komisi +Rp {earnedCommission.toLocaleString('id-ID')}
+                  Komisi Anda +Rp {earnedCommission.toLocaleString('id-ID')}
                 </span>
+              </div>
+
+              {/* Commission Scheme Switcher for Sub-Agent */}
+              <div className="flex items-center justify-between bg-[#f4f6f4] p-1.5 rounded-lg text-xs">
+                <span className="text-[10px] font-bold text-[#414941] uppercase">Skema Komisi Gerai:</span>
+                <div className="flex gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setCommissionType('PERCENTAGE')}
+                    className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${
+                      commissionType === 'PERCENTAGE'
+                        ? 'bg-[#003316] text-[#a5f87a]'
+                        : 'bg-white text-[#414941] border border-[#d0d9d1]'
+                    }`}
+                  >
+                    20% Ongkir
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCommissionType('FLAT_AMOUNT')}
+                    className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${
+                      commissionType === 'FLAT_AMOUNT'
+                        ? 'bg-[#003316] text-[#a5f87a]'
+                        : 'bg-white text-[#414941] border border-[#d0d9d1]'
+                    }`}
+                  >
+                    Flat Rp 1.100
+                  </button>
+                </div>
               </div>
 
               <div className="space-y-1.5 text-xs">
                 <div className="flex justify-between text-[#414941]">
                   <span>Ongkos Kirim ({chargeableWeight} kg):</span>
                   <span className="font-tabular font-semibold text-[#131e17]">
-                    Rp {(selectedService?.shippingFee || 24000).toLocaleString('id-ID')}
+                    Rp {(selectedService?.shippingFee || 9000).toLocaleString('id-ID')}
                   </span>
                 </div>
                 <div className="flex justify-between text-[#414941]">
                   <span>Biaya Asuransi Paket:</span>
                   <span className="font-tabular font-semibold text-[#131e17]">
-                    Rp {(selectedService?.insuranceFee || 1500).toLocaleString('id-ID')}
+                    Rp {(selectedService?.insuranceFee || 1000).toLocaleString('id-ID')}
                   </span>
                 </div>
                 <div className="pt-2 border-t border-[#d0d9d1] flex justify-between items-baseline">
-                  <span className="font-bold text-[#131e17]">Total Tagihan Kasir:</span>
+                  <span className="font-bold text-[#131e17]">Total Tagihan Konsumen:</span>
                   <span className="font-headline font-black text-xl text-[#003316]">
                     Rp {totalAmount.toLocaleString('id-ID')}
                   </span>
@@ -522,35 +705,55 @@ export default function PosKasirPage() {
               </div>
 
               {/* Payment Method Switcher */}
-              <div className="pt-1">
-                <label className="text-[10px] font-bold text-[#414941] uppercase block mb-1">
-                  Metode Pembayaran Kasir
+              <div className="pt-1 space-y-1.5">
+                <label className="text-[10px] font-bold text-[#414941] uppercase block">
+                  Metode Pembayaran (Diterima ke Akasia Logistik)
                 </label>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-3 gap-1.5">
                   <button
                     type="button"
                     onClick={() => setPaymentMethod('CASH')}
-                    className={`py-2 px-3 rounded-lg text-xs font-bold border flex items-center justify-center gap-1.5 transition-all ${
+                    className={`py-2 px-1 rounded-lg text-[11px] font-bold border flex flex-col items-center justify-center gap-1 transition-all ${
                       paymentMethod === 'CASH'
                         ? 'bg-[#114b27] text-white border-[#114b27]'
                         : 'bg-white text-[#131e17] border-[#d0d9d1] hover:bg-[#e9efe9]'
                     }`}
                   >
                     <span className="material-symbols-outlined text-[16px]">payments</span>
-                    <span>CASH (Laci Kas)</span>
+                    <span>CASH</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setPaymentMethod('QRIS')}
-                    className={`py-2 px-3 rounded-lg text-xs font-bold border flex items-center justify-center gap-1.5 transition-all ${
+                    className={`py-2 px-1 rounded-lg text-[11px] font-bold border flex flex-col items-center justify-center gap-1 transition-all ${
                       paymentMethod === 'QRIS'
                         ? 'bg-[#114b27] text-white border-[#114b27]'
                         : 'bg-white text-[#131e17] border-[#d0d9d1] hover:bg-[#e9efe9]'
                     }`}
                   >
                     <span className="material-symbols-outlined text-[16px]">qr_code_scanner</span>
-                    <span>QRIS Gerai</span>
+                    <span>QRIS Akasia</span>
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod('BANK_TRANSFER')}
+                    className={`py-2 px-1 rounded-lg text-[11px] font-bold border flex flex-col items-center justify-center gap-1 transition-all ${
+                      paymentMethod === 'BANK_TRANSFER'
+                        ? 'bg-[#114b27] text-white border-[#114b27]'
+                        : 'bg-white text-[#131e17] border-[#d0d9d1] hover:bg-[#e9efe9]'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-[16px]">account_balance</span>
+                    <span>Transfer Bank</span>
+                  </button>
+                </div>
+
+                {/* Explicit COD Restriction Banner */}
+                <div className="p-2 bg-[#fef2f2] border border-[#f87171]/40 rounded-lg text-[10px] text-[#991b1b] flex items-center gap-2">
+                  <span className="material-symbols-outlined text-[16px] shrink-0 text-[#dc2626]">block</span>
+                  <span>
+                    <strong>Layanan COD Non-Aktif:</strong> Sistem Akasia Logistik tidak melayani Cash On Delivery meskipun tersedia di sistem ID Express.
+                  </span>
                 </div>
               </div>
 
@@ -568,7 +771,11 @@ export default function PosKasirPage() {
                 ) : (
                   <span className="material-symbols-outlined text-[20px]">print</span>
                 )}
-                <span>[F12] Cetak Resi Thermal &amp; Simpan</span>
+                <span>
+                  {isRemoteBooking
+                    ? '[F12] Proses Remote Booking (Cetak di Hub)'
+                    : '[F12] Cetak Resi Thermal & Simpan'}
+                </span>
               </button>
             </div>
 
@@ -580,11 +787,11 @@ export default function PosKasirPage() {
                     ID EXPRESS
                   </span>
                   <span className="text-[10px] font-tabular font-bold text-[#131e17]">
-                    SUB-JKT-042
+                    {agent?.agentId || 'AG-0418'}
                   </span>
                 </div>
                 <span className="text-[10px] font-bold uppercase text-[#414941]">
-                  100×150mm Roll
+                  100×150mm Thermal Roll
                 </span>
               </div>
 
@@ -649,24 +856,31 @@ export default function PosKasirPage() {
                 <div>
                   <span className="text-[9px] uppercase text-[#414941] block">Layanan</span>
                   <span className="font-headline font-black text-xs text-[#e01a22]">
-                    {selectedService?.name?.slice(0, 15) || 'STANDARD REG'}
+                    {selectedService?.code || 'iD Standard'}
                   </span>
                 </div>
               </div>
 
+              {/* Remote Booking Indicator if applicable */}
+              {isRemoteBooking && (
+                <div className="bg-[#fef3c7] border border-[#f59e0b] p-1 text-center rounded text-[10px] font-bold text-[#b45309] uppercase">
+                  ⭐ REMOTE BOOKING — DICETAK DI HUB PUSAT AKASIA
+                </div>
+              )}
+
               {/* Recipient & Sender Micro Info */}
               <div className="space-y-1.5 text-[11px] leading-tight">
                 <div className="bg-[#f4f6f4] p-1.5 rounded">
-                  <span className="font-bold block">Penerima: {recipientName}</span>
-                  <span className="text-[#414941]">{recipientAddress}</span>
+                  <span className="font-bold block">Penerima: {recipientName || 'Kresna Logistik Office'}</span>
+                  <span className="text-[#414941]">{recipientAddress || 'Jl. Pemuda No. 102, Rawamangun, Jaktim'}</span>
                   <span className="block font-tabular text-[#131e17] font-semibold mt-0.5">
-                    Telp: {recipientPhone}
+                    Telp: {recipientPhone || '0817-2233-8899'}
                   </span>
                 </div>
 
                 <div className="p-1">
-                  <span className="font-bold block">Pengirim: {senderName}</span>
-                  <span className="text-[#414941]">Gerai Kuningan Tower 2 • {senderPhone}</span>
+                  <span className="font-bold block">Pengirim: {senderName || 'Hendra (PT Mega Pratama)'}</span>
+                  <span className="text-[#414941]">Gerai Kuningan Tower 2 • {senderPhone || '0812-8877-3321'}</span>
                 </div>
               </div>
 
