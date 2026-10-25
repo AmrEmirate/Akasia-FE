@@ -4,10 +4,10 @@ import React, { useState } from 'react';
 import { useKasirAuth } from '@/context/KasirAuthContext';
 
 export default function ShiftModal() {
-  const { isShiftModalOpen, closeShiftModal, activeShift, openShift, closeShift, agent } = useKasirAuth();
+  const { isShiftModalOpen, closeShiftModal, activeShift, openShift, closeShift, agent, user } = useKasirAuth();
 
   // Open Shift Form State
-  const [cashierName, setCashierName] = useState('');
+  const [cashierName, setCashierName] = useState(user?.fullName || '');
   const [shiftType, setShiftType] = useState('MORNING');
   const [startingCash, setStartingCash] = useState('500000');
   const [pin, setPin] = useState('');

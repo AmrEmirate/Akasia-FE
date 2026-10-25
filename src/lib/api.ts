@@ -37,6 +37,13 @@ export async function fetchApi(endpoint: string, options: RequestInit = {}) {
 
   const data = await response.json();
   if (!response.ok) {
+    if (response.status === 401 && typeof window !== 'undefined' && !endpoint.includes('/auth/login')) {
+      setAuthToken(null);
+      localStorage.removeItem('akasia_user');
+      if (!window.location.pathname.includes('/login')) {
+        window.location.href = `/login?redirect=${encodeURIComponent(window.location.pathname)}`;
+      }
+    }
     throw new Error(data.message || data.error || 'Terjadi kesalahan pada request API Akasia');
   }
   return data;

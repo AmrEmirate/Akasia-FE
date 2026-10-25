@@ -6,7 +6,7 @@ import { akasiaApi } from '@/lib/api';
 import { useKasirAuth } from '@/context/KasirAuthContext';
 
 export default function PosKasirPage() {
-  const { activeShift, openShiftModal, refreshSession, agent, user } = useKasirAuth();
+  const { activeShift, openShiftModal, refreshSession, agent, user, isPusat } = useKasirAuth();
   const [loading, setLoading] = useState(false);
   const [bookingSuccess, setBookingSuccess] = useState(false);
 
@@ -220,6 +220,41 @@ export default function PosKasirPage() {
   return (
     <HeaderAndSidebar>
       <div className="p-4 sm:p-6 space-y-4">
+        {/* Role Notice for Pusat */}
+        {isPusat && (
+          <div className="bg-[#1b2a47] text-white p-3.5 rounded-xl border border-[#3b5998] flex items-center justify-between text-xs shadow-xs">
+            <div className="flex items-center gap-2.5">
+              <span className="material-symbols-outlined text-[20px] text-[#93c5fd]">shield_person</span>
+              <span>
+                <strong>Mode Supervisi Kantor Pusat:</strong> Anda memantau antarmuka POS Gerai <strong>{agent?.branchName || 'Gerai Kuningan Tower 2'} ({agent?.agentId || 'AG-0418'})</strong>.
+              </span>
+            </div>
+            <span className="bg-[#0f1d33] text-blue-300 font-bold px-2 py-0.5 rounded text-[10px] uppercase">
+              SUPERADMIN AUDIT
+            </span>
+          </div>
+        )}
+
+        {/* Warning if Shift not open */}
+        {!activeShift && !isPusat && (
+          <div className="bg-amber-50 border border-amber-300 p-3.5 rounded-xl flex items-center justify-between text-xs text-amber-900 shadow-xs animate-pulse">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-amber-600 text-[20px]">warning</span>
+              <span>
+                <strong>Shift Kasir Belum Dibuka:</strong> Buka shift operasional kasir untuk mulai melayani penerimaan paket dan mencatat saldo laci kas tunai.
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={openShiftModal}
+              className="bg-[#114b27] hover:bg-[#003316] text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 shadow-xs flex items-center gap-1"
+            >
+              <span className="material-symbols-outlined text-[16px]">key</span>
+              <span>Buka Shift Sekarang</span>
+            </button>
+          </div>
+        )}
+
         {/* Top Operational Banner */}
         <div className="bg-white p-4 rounded-xl border border-[#d0d9d1] shadow-xs flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
@@ -236,7 +271,7 @@ export default function PosKasirPage() {
                 </span>
               </div>
               <span className="text-[11px] text-[#414941]">
-                Sesi Kasir: KS-0914 | Manifest Batch Berjalan: <strong className="text-[#131e17]">MNF-JKT04-20241028-003</strong>
+                Sesi Kasir: <strong className="text-[#131e17]">{activeShift ? `${activeShift.shiftCode} (${activeShift.cashierName})` : 'Belum Ada Shift'}</strong> | Gerai: <strong className="text-[#131e17]">{agent?.branchName || user?.branchName || 'Gerai Kuningan Tower 2'}</strong>
               </span>
             </div>
           </div>
@@ -247,16 +282,16 @@ export default function PosKasirPage() {
                 Total Paket Shift
               </span>
               <span className="font-tabular font-bold text-sm text-[#003316]">
-                47 Koli / 68.2 kg
+                {activeShift?.packagesBooked || 0} Koli
               </span>
             </div>
             <div className="h-7 w-px bg-[#d0d9d1]"></div>
             <div className="text-right">
               <span className="text-[10px] text-[#414941] uppercase font-bold block">
-                Hak Komisi Sub-Agent (20%)
+                Saldo Komisi Gerai
               </span>
               <span className="font-tabular font-bold text-sm text-[#16a34a]">
-                Rp 174.600
+                Rp {(agent?.commissionBalance || 0).toLocaleString('id-ID')}
               </span>
             </div>
           </div>

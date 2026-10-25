@@ -122,8 +122,10 @@ export function KasirAuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      // Default baseline session (Sub-agent Kuningan AG-0418)
-      await refreshSession();
+      // Not authenticated - clear session states so protected pages can guard
+      setUser(null);
+      setAgent(null);
+      setActiveShift(null);
       setLoading(false);
     };
 
@@ -154,11 +156,17 @@ export function KasirAuthProvider({ children }: { children: React.ReactNode }) {
   const logout = () => {
     setAuthToken(null);
     setUser(null);
+    setAgent(null);
+    setActiveShift(null);
     if (typeof window !== 'undefined') {
       localStorage.removeItem('akasia_user');
+      localStorage.removeItem('akasia_token');
     }
     // Fire logout request to server if available
     akasiaApi.logout().catch(() => {});
+    if (typeof window !== 'undefined') {
+      window.location.href = '/login';
+    }
   };
 
   const openShift = async (

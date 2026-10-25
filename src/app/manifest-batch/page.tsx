@@ -3,8 +3,10 @@
 import { useState, useEffect } from 'react';
 import HeaderAndSidebar from '@/components/HeaderAndSidebar';
 import { akasiaApi } from '@/lib/api';
+import { useKasirAuth } from '@/context/KasirAuthContext';
 
 export default function ManifestBatchPage() {
+  const { user, isPusat } = useKasirAuth();
   const [batchData, setBatchData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState<'ALL' | 'STAGED' | 'MANIFESTED' | 'HANDED_OVER'>('ALL');

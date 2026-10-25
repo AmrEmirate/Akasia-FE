@@ -1,19 +1,34 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useKasirAuth } from '@/context/KasirAuthContext';
 
-export default function LoginPage() {
+function LoginFormContent() {
   const router = useRouter();
-  const { login } = useKasirAuth();
+  const searchParams = useSearchParams();
+  const redirectTarget = searchParams.get('redirect');
+
+  const { login, isAuthenticated, user, loading: authLoading } = useKasirAuth();
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // If already logged in, redirect away from login page
+  useEffect(() => {
+    if (!authLoading && isAuthenticated && user) {
+      if (redirectTarget && redirectTarget !== '/login') {
+        router.replace(redirectTarget);
+      } else if (user.role === 'AKASIA_PUSAT') {
+        router.replace('/rekonsiliasi-komisi');
+      } else {
+        router.replace('/');
+      }
+    }
+  }, [authLoading, isAuthenticated, user, redirectTarget, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,7 +44,10 @@ export default function LoginPage() {
     setLoading(false);
 
     if (res.success) {
-      // Determine redirection based on role
+      if (redirectTarget && redirectTarget !== '/login') {
+        router.push(redirectTarget);
+        return;
+      }
       const lowerUser = username.trim().toLowerCase();
       if (lowerUser.includes('pusat') || lowerUser.includes('admin')) {
         router.push('/rekonsiliasi-komisi');
@@ -51,7 +69,11 @@ export default function LoginPage() {
     setLoading(false);
 
     if (res.success) {
-      router.push(targetPath);
+      if (redirectTarget && redirectTarget !== '/login') {
+        router.push(redirectTarget);
+      } else {
+        router.push(targetPath);
+      }
     } else {
       setErrorMsg(res.message || 'Login demo gagal');
     }
@@ -100,13 +122,13 @@ export default function LoginPage() {
 
           <div className="text-center space-y-1.5 mb-6">
             <span className="text-[11px] font-bold uppercase tracking-widest text-[#a5f87a] bg-[#114b27]/80 px-3 py-0.5 rounded-full border border-[#81bb8c]/30">
-              Gerai POS &amp; Financial Settlement
+              Autentikasi Gerai POS &amp; Rekonsiliasi Sentral
             </span>
             <h1 className="font-headline font-black text-2xl text-white tracking-tight">
               Masuk ke Terminal
             </h1>
             <p className="text-xs text-[#a3c9ab]">
-              Pilih hak akses untuk mengoperasikan kasir atau meninjau rekonsiliasi komisi.
+              Masuk dengan akun terotorisasi untuk mengakses loket kasir atau rekonsiliasi sentral.
             </p>
           </div>
 
@@ -191,7 +213,7 @@ export default function LoginPage() {
           {/* QUICK DEMO LOGIN BUTTONS */}
           <div className="mt-6 pt-5 border-t border-[#1a552c]/80 space-y-2.5">
             <span className="text-[10px] font-bold uppercase tracking-wider text-[#81bb8c] block text-center">
-              Pintas Cepat Akun Demo (1-Klik Masuk)
+              Pintas Cepat Akun Demo Terverifikasi (1-Klik Masuk)
             </span>
 
             {/* Pusat */}
@@ -205,10 +227,10 @@ export default function LoginPage() {
                 <span className="material-symbols-outlined text-[18px]">admin_panel_settings</span>
                 <div className="text-left leading-tight">
                   <div className="font-headline font-bold">1. Akasia Sentral Pusat</div>
-                  <div className="text-[10px] opacity-80">admin_pusat (Klaim 25% ID Express &amp; Ledger)</div>
+                  <div className="text-[10px] opacity-80">admin_pusat (Klaim 25% ID Express &amp; Konsolidasi Sentral)</div>
                 </div>
               </div>
-              <span className="text-[10px] uppercase font-tabular px-2 py-0.5 rounded bg-[#0f1d33] text-blue-300">
+              <span className="text-[10px] uppercase font-tabular px-2 py-0.5 rounded bg-[#0f1d33] text-blue-300 font-bold">
                 PUSAT
               </span>
             </button>
@@ -224,10 +246,10 @@ export default function LoginPage() {
                 <span className="material-symbols-outlined text-[18px]">storefront</span>
                 <div className="text-left leading-tight">
                   <div className="font-headline font-bold">2. Sub-Agent Kuningan (AG-0418)</div>
-                  <div className="text-[10px] opacity-80">kasir_kuningan (Komisi 20% Gerai)</div>
+                  <div className="text-[10px] opacity-80">kasir_kuningan (Loket Kasir &amp; Komisi 20% Gerai)</div>
                 </div>
               </div>
-              <span className="text-[10px] uppercase font-tabular px-2 py-0.5 rounded bg-[#04200f] text-emerald-300">
+              <span className="text-[10px] uppercase font-tabular px-2 py-0.5 rounded bg-[#04200f] text-emerald-300 font-bold">
                 GERAI
               </span>
             </button>
@@ -243,10 +265,10 @@ export default function LoginPage() {
                 <span className="material-symbols-outlined text-[18px]">storefront</span>
                 <div className="text-left leading-tight">
                   <div className="font-headline font-bold">3. Sub-Agent Sudirman (AG-0419)</div>
-                  <div className="text-[10px] opacity-80">kasir_sudirman (Komisi 20% Gerai)</div>
+                  <div className="text-[10px] opacity-80">kasir_sudirman (Loket Kasir &amp; Komisi 20% Gerai)</div>
                 </div>
               </div>
-              <span className="text-[10px] uppercase font-tabular px-2 py-0.5 rounded bg-[#04200f] text-emerald-300">
+              <span className="text-[10px] uppercase font-tabular px-2 py-0.5 rounded bg-[#04200f] text-emerald-300 font-bold">
                 GERAI
               </span>
             </button>
@@ -265,19 +287,31 @@ export default function LoginPage() {
       <footer className="relative z-10 w-full max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 py-2 text-xs text-[#71987b]">
         <span>© 2026 PT Akasia Logistik Indonesia • Dedicated ID Express POS Counter</span>
         <div className="flex items-center gap-4">
-          <Link href="/" className="hover:text-white underline">
-            Terminal Kasir Tamu
-          </Link>
+          <span className="text-[11px] text-[#81bb8c]">Bantuan Teknis: 0811-9988-7700</span>
           <a
             href="http://localhost:3000"
             target="_blank"
             rel="noreferrer"
-            className="hover:text-white underline"
+            className="hover:text-white underline text-[11px]"
           >
             Buka Proship Web
           </a>
         </div>
       </footer>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-[#042813] flex items-center justify-center text-white text-xs">
+          Memuat Antarmuka Login...
+        </div>
+      }
+    >
+      <LoginFormContent />
+    </Suspense>
   );
 }

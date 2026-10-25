@@ -3,15 +3,17 @@
 import { useState, useEffect } from 'react';
 import HeaderAndSidebar from '@/components/HeaderAndSidebar';
 import { akasiaApi } from '@/lib/api';
+import { useKasirAuth } from '@/context/KasirAuthContext';
 
 export default function MultiSearchCsPage() {
+  const { user, isPusat } = useKasirAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [results, setResults] = useState<any>(null);
   const [loading, setLoading] = useState(false);
 
   // Complaint Form Modal
   const [complaintModal, setComplaintModal] = useState(false);
-  const [reporterName, setReporterName] = useState('');
+  const [reporterName, setReporterName] = useState(user?.fullName || '');
   const [customerPhone, setCustomerPhone] = useState('');
   const [issueCategory, setIssueCategory] = useState('GENERAL_INQUIRY');
   const [notes, setNotes] = useState('');
