@@ -3,7 +3,7 @@ FROM node:22-alpine AS builder
 
 WORKDIR /app
 
-ENV NODE_ENV=development
+ENV NODE_ENV=production
 
 COPY package*.json ./
 RUN npm install --include=dev
